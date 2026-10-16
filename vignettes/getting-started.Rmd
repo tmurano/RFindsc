@@ -1,0 +1,129 @@
+---
+title: "Getting started with RFind-sc"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with RFind-sc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+## What RFind-sc does
+
+RFind-sc scores single cells against **case-vs-control gene panels**. A panel
+is a pair of gene lists: UP (case-upregulated) and DOWN (case-downregulated).
+Each cell's genes are ranked by the P2 Pearson residual `(obs - exp)/sqrt(exp + 1)`,
+and the cell's UP/DOWN lists are compared with the panel's by the Running Fisher
+test (smallest hypergeometric p over every top-G × top-K cut-off pair; an
+unordered gene set, such as a Hallmark gene group, is used whole and only the
+cell's cut-offs are scanned). The
+score is **signed**: positive for case-aligned cells, negative for
+control-aligned.
+
+This is the complement of tools like AUCell and UCell, which are designed for
+directionless pathway scoring (MSigDB Hallmark, GO, etc.) and return
+non-negative scores that cannot express direction.
+
+## Quick start
+
+```{r, eval = FALSE}
+library(RFindsc)
+library(Seurat)
+
+mg <- readRDS("path/to/my_microglia_seurat.rds")
+out <- run_pipeline(mg, biosets = default_biosets())
+
+# Score matrix: cell x panel (DAM, Maturity, Interferon, G2M)
+head(out$scores)
+```
+
+## Panels you can use
+
+Three tiers of panel access:
+
+1. **Bundled references of the paper** — `default_biosets()` returns the 4
+   Hammond axes (DAM and Maturity signed references; Interferon and G2M
+   Hallmark gene groups); `load_dedonno_biosets()` returns the 4 De Donno axes
+   (Glucocorticoid, Seizure, UPR, NF-kB).
+2. **MSigDB on demand** — `msigdbr_to_panels(species, collection)` pulls any
+   MSigDB collection.
+3. **Auto-paired CGP** — `c2_cgp_auto_pair(species)` pulls the ~850 MSigDB C2
+   CGP panel pairs with `_UP` / `_DN` suffixes and pairs them.
+
+## Building a panel from your own DEG
+
+```{r, eval = FALSE}
+deg <- read.csv("my_deg_table.csv")   # cols: gene, log2FC, padj
+p <- build_panel_from_deg(deg,
+                          gene_col = "gene",
+                          log2fc_col = "log2FC",
+                          padj_col  = "padj",
+                          padj_thresh = 0.05,
+                          label = "my_condition")
+
+out <- run_pipeline(mg, biosets = list(my_condition = p))
+```
+
+The whole ranked table is kept in the panel; at scoring time it is restricted
+to the genes of the dataset and the top `top_n` (500) genes per side are used,
+as in the RFind-sc paper.
+
+## Migrating from AUCell
+
+If you already use AUCell, RFind-sc accepts the same input shape as
+`AUCell::AUCell_calcAUC()` via `score_genesets()`: a counts matrix (or
+Seurat object) plus a named list of gene character vectors.
+
+```{r, eval = FALSE}
+library(RFindsc)
+
+# AUCell-style invocation: same input, drop-in compatible
+gene_sets <- list(
+  microglia_marker = c("Tmem119", "P2ry12", "Cx3cr1"),
+  inflammation     = c("Tnf", "Il1b", "Nfkb1")
+)
+out <- score_genesets(mg, gene_sets)
+head(out$scores)              # cell x set RFind-sc scores
+```
+
+`score_genesets()` uses the two-term reduction (DOWN list empty) and treats each
+set as unordered (used whole), so it is interchangeable with AUCell on
+single-list pathway scoring tasks.
+**To use the direction-aware four-term score** (RFind's distinguishing
+feature), supply `(UP, DOWN)` panels instead via `score_panel_pairs()`:
+
+```{r, eval = FALSE}
+panels <- list(
+  my_contrast = list(up = case_up_genes, down = case_down_genes)
+)
+out <- score_panel_pairs(mg, panels)
+# scores are now signed: positive = case-aligned, negative = control-aligned
+```
+
+For end-to-end use with the bundled references, `run_pipeline()`
+remains the single-call entry point.
+
+## Per-cell-type baseline
+
+Each cell's signature is its deviation from a baseline: by default the mean CPM of
+all cells. In a dataset with many cell types, cell identity then dominates the
+signature. Pass `baseline_groups` (one label per cell) to compare each cell with
+the cells of its own group instead, as the RFind-sc paper does for the De Donno
+et al. hippocampus (baseline per cell type, both conditions pooled):
+
+```{r, eval = FALSE}
+out <- run_pipeline(seu, biosets = load_dedonno_biosets(),
+                    baseline_groups = seu$cell_type)
+```
+
+## Configuration
+
+Hyperparameters (defaults follow the paper):
+
+```{r, eval = FALSE}
+cfg <- rfindsc_config(top_n = 500, n_cell = 500, clip = 300)
+out <- run_pipeline(mg, config = cfg)
+```

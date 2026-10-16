@@ -1,0 +1,42 @@
+Package: RFindsc
+Title: Direction-Aware Panel Scoring for Single-Cell RNA-Seq
+Version: 0.3.8
+Authors@R: c(
+    person("Tomoyuki", "Murano", , "tomoyuki.murano@fujita-hu.ac.jp", role = c("aut", "cre")),
+    person("Miyakawa", "Lab", role = "fnd")
+  )
+Description: RFind-sc scores each cell against case-vs-control gene panels with
+    the Running Fisher test: two ranked gene lists are compared by the smallest
+    hypergeometric p-value over every pair of cut-offs (an unordered gene
+    set is used whole), and the four up/down pairs are combined into one
+    signed score. Per-cell UP/DOWN signatures are ranked by the P2 Pearson
+    residual of observed versus baseline-expected counts,
+    (obs - exp)/sqrt(exp + 1). Panels consist of
+    paired UP and DOWN gene lists (or a single gene group), producing signed
+    per-cell scores (case-like positive, control-like negative). The package
+    ships the reference axes of the RFind-sc paper (Hammond: DAM, Maturity,
+    Interferon, G2M; De Donno: Glucocorticoid, Seizure, UPR, NF-kB), with
+    helpers to pull MSigDB collections and auto-pair C2 CGP '_UP/_DN' panels.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: false
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    Matrix,
+    stats,
+    utils,
+    parallel
+Suggests:
+    Seurat (>= 5.0.0),
+    AUCell,
+    msigdbr (>= 10.0.0),
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+URL: https://github.com/tmurano/RFindsc
+BugReports: https://github.com/tmurano/RFindsc/issues
