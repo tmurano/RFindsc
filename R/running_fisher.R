@@ -21,6 +21,10 @@
 #' added; before, gene sets were scanned as if ranked in the order stored
 #' (alphabetical for the bundled gene groups).
 #'
+#' Each list should name each gene once: a name given twice counts as two
+#' genes and inflates the overlap `M`. Since 0.3.9 such input gives a warning
+#' (class `rfindsc_duplicated_names`); the score is computed as before.
+#'
 #' @param g1 Character vector: ranked gene symbols (first list, most extreme
 #'   first).
 #' @param g2 Character vector: ranked gene symbols (second list), or a
@@ -48,6 +52,12 @@
 #' @export
 running_fisher <- function(g1, g2, universe_size, clip = 300, g2_ranked = TRUE) {
   if (!length(g1) || !length(g2)) return(0)
+  if (anyDuplicated(g1) || anyDuplicated(g2)) {
+    warning(structure(class = c("rfindsc_duplicated_names", "warning", "condition"),
+      list(message = paste("running_fisher(): a gene list names a gene more than once; each copy counts as a",
+                           "separate gene and inflates the overlap. Remove the duplicates before matching."),
+           call = NULL)))
+  }
   r1 <- which(g1 %in% g2); m <- length(r1)                 # ranks in g1 of the shared genes (increasing)
   if (!m) return(0)
   if (!g2_ranked) {

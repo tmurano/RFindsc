@@ -77,11 +77,13 @@ universe (0.3.8), and a gene set is used whole, as in the RFind-sc paper.
 Parallelism and memory: cells are scored in chunks of up to 200 cells with
 \code{parallel::mclapply()} on \code{config$n_cores} cores (one core on Windows by
 default). Before the workers start, the counts of the scoring universe are
-copied into a dense matrix when it takes at most 8 GB (genes x cells x 8
-bytes); larger inputs are made dense one chunk at a time. Two environment
-variables change these settings: \code{RFIND_CHUNK_SIZE} (largest chunk, in
-cells) and \code{RFIND_DENSE_MAX_GB} (largest dense copy, in GB; set it lower on
-a machine with little memory). Unset, or set to a value that is not a
-number, each gives its default (200 cells, 8 GB). Scores do not depend on
-them.
+copied into a dense matrix when it takes at most 2 GB (genes x cells x 8
+bytes; 8 GB before 0.3.9); larger inputs are made dense one chunk at a time,
+which keeps the memory small and is as fast on several cores. The per-cell
+signatures are returned from the workers only with \code{return_signatures = TRUE}
+(0.3.9). Two environment variables change these settings: \code{RFIND_CHUNK_SIZE}
+(largest chunk, in cells) and \code{RFIND_DENSE_MAX_GB} (largest dense copy, in GB;
+a larger value can make one-core runs on large inputs faster on a machine
+with enough memory). Unset, or set to a value that is not a number, each
+gives its default (200 cells, 2 GB). Scores do not depend on them.
 }

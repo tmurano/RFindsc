@@ -131,8 +131,9 @@ test_that("per-group baseline scores equal the Python package rfindsc (shared fi
     if (any(p$side == "eligible")) b$eligible <- p$gene[p$side == "eligible"]   # pair universe (0.3.5)
     b })
   py <- as.matrix(utils::read.delim(fx("scores.tsv"), row.names = 1, check.names = FALSE))
-  out <- score_cells(counts, panels, rfindsc_config(n_cell = 100, n_cores = 1), return_signatures = TRUE,
-                     baseline_groups = cells$group)
+  # the fixture has one name that differs from another only in case (cspp1): score_cells() says so once (0.3.9)
+  expect_warning(out <- score_cells(counts, panels, rfindsc_config(n_cell = 100, n_cores = 1), return_signatures = TRUE,
+                                    baseline_groups = cells$group), "occur in more than one row")
   expect_identical(colnames(out$scores), colnames(py))
   expect_identical(rownames(out$scores), rownames(py))
   expect_lt(max(abs(out$scores - py)), 1e-8)

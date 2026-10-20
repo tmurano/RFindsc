@@ -1,6 +1,6 @@
 Package: RFindsc
 Title: Direction-Aware Panel Scoring for Single-Cell RNA-Seq
-Version: 0.3.8
+Version: 1.0.0
 Authors@R: c(
     person("Tomoyuki", "Murano", , "tomoyuki.murano@fujita-hu.ac.jp", role = c("aut", "cre")),
     person("Miyakawa", "Lab", role = "fnd")

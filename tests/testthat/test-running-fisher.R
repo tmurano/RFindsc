@@ -148,3 +148,10 @@ test_that("build_panel_from_deg splits by sign and caps to top_n", {
   expect_true(all(p$down$diff < 0))
   expect_equal(p$type, "deg")
 })
+
+test_that("running_fisher warns when a list names a gene twice and computes the score as before (0.3.9)", {
+  g1 <- c("a", "a", "b", "c"); g2 <- c("a", "d", "b")
+  expect_warning(s <- running_fisher(g1, g2, universe_size = 50), class = "rfindsc_duplicated_names")
+  expect_true(is.finite(s))
+  expect_silent(running_fisher(unique(g1), g2, universe_size = 50))
+})

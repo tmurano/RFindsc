@@ -1,3 +1,22 @@
+# RFindsc 1.0.0
+
+- First stable release, the version of the RFind-sc paper. The code and the scores are those of 0.3.9; only the
+  version number changed.
+
+# RFindsc 0.3.9
+
+- `score_cells()` and the functions built on it are faster on several cores: the per-cell signatures are sent back from
+  the worker processes only with `return_signatures = TRUE` (before, always; for 75,572 cells about 300 MB), and the
+  counts are copied into a dense matrix before the workers start only when the copy takes at most 2 GB (before, 8 GB;
+  `RFIND_DENSE_MAX_GB` still sets the cap). Scoring 75,572 cells against one panel of 500 genes per side took 46 s on
+  6 cores instead of 70 s (R 4.5.2, Apple M3, 16 GB), and the 5.7 GB copy no longer fills the memory of an 8 GB machine.
+  Scores are unchanged.
+- `running_fisher()` warns (class `rfindsc_duplicated_names`) when a list names a gene more than once, which counts the
+  gene twice and inflates the overlap; `score_cells()` warns once when names of the scoring universe differ only in case
+  (e.g. PISD and Pisd), since names are matched without regard to case. Scores are unchanged.
+- README: the comparison with AUCell and UCell describes UCell's signed signatures (up minus down genes, set to 0 when
+  negative), as the RFind-sc paper does.
+
 # RFindsc 0.3.8
 
 - The bundled references (`default_biosets()`: DAM, Maturity, Interferon, G2M; `load_dedonno_biosets()`: Glucocorticoid,

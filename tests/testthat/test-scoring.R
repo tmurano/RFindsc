@@ -169,3 +169,18 @@ test_that("a ranked panel is cut to top_n before the pair universe; a gene set i
   s <- prepare_panel(utils::modifyList(b, list(ranked = FALSE)), gn, top_n = 2)
   expect_identical(s$up, c("g1", "g2", "g3"))       # a gene set is used whole
 })
+
+test_that("score_cells warns once about names that differ only in case and returns signatures only when asked (0.3.9)", {
+  set.seed(3)
+  counts <- matrix(rpois(60 * 30, lambda = 3), nrow = 60, ncol = 30,
+                   dimnames = list(c("Gdup", "GDUP", paste0("g", 3:60)), paste0("c", 1:30)))
+  bs <- list(P = list(up = data.frame(gene = paste0("g", 3:12), diff = 10:1, rank = 1:10),
+                      down = data.frame(gene = paste0("g", 13:22), diff = -(10:1), rank = 1:10), type = "deg"))
+  cfg <- rfindsc_config(n_cores = 1)
+  w <- capture_warnings(out <- score_cells(counts, bs, config = cfg))
+  expect_length(grep("occur in more than one row", w), 1L)
+  expect_null(out$signatures)
+  out2 <- suppressWarnings(score_cells(counts, bs, config = cfg, return_signatures = TRUE))
+  expect_equal(out2$scores, out$scores)
+  expect_length(out2$signatures$up_idx, ncol(counts))
+})

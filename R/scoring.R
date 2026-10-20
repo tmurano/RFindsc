@@ -164,13 +164,15 @@ score_cell_ranking <- function(ranking, b, gene_names, n_cell, clip = 300) {
 #' Parallelism and memory: cells are scored in chunks of up to 200 cells with
 #' `parallel::mclapply()` on `config$n_cores` cores (one core on Windows by
 #' default). Before the workers start, the counts of the scoring universe are
-#' copied into a dense matrix when it takes at most 8 GB (genes x cells x 8
-#' bytes); larger inputs are made dense one chunk at a time. Two environment
-#' variables change these settings: `RFIND_CHUNK_SIZE` (largest chunk, in
-#' cells) and `RFIND_DENSE_MAX_GB` (largest dense copy, in GB; set it lower on
-#' a machine with little memory). Unset, or set to a value that is not a
-#' number, each gives its default (200 cells, 8 GB). Scores do not depend on
-#' them.
+#' copied into a dense matrix when it takes at most 2 GB (genes x cells x 8
+#' bytes; 8 GB before 0.3.9); larger inputs are made dense one chunk at a time,
+#' which keeps the memory small and is as fast on several cores. The per-cell
+#' signatures are returned from the workers only with `return_signatures = TRUE`
+#' (0.3.9). Two environment variables change these settings: `RFIND_CHUNK_SIZE`
+#' (largest chunk, in cells) and `RFIND_DENSE_MAX_GB` (largest dense copy, in GB;
+#' a larger value can make one-core runs on large inputs faster on a machine
+#' with enough memory). Unset, or set to a value that is not a number, each
+#' gives its default (200 cells, 2 GB). Scores do not depend on them.
 #'
 #' @return A list:
 #'   * `scores`: numeric matrix (cell x panel)
@@ -211,6 +213,15 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
   }
   if (is.null(group)) group <- rep(1L, ncol(counts))
   gene_names <- tolower(universe)
+  # Names are matched without regard to case, so two rows whose names differ only in case (e.g. PISD and Pisd) count as
+  # the same gene twice in a cell's lists (0.3.9: a warning, once; the scores are computed as before)
+  dup_names <- unique(gene_names[duplicated(gene_names)])
+  if (length(dup_names)) {
+    warning(sprintf(paste("%d gene name(s) occur in more than one row of the scoring universe when case is ignored",
+                          "(e.g. %s); such a gene can be counted twice in a cell's lists. Merge or rename these rows",
+                          "before scoring."), length(dup_names), paste(utils::head(dup_names, 3), collapse = ", ")),
+            call. = FALSE)
+  }
 
   # Each panel is scored in its pair universe (prepare_panel): the genes of the
   # dataset that the reference could contain (`eligible`), or all of them for a
@@ -235,16 +246,18 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
   # matrix's refcount sits on a single header page, so column reads from shared
   # data storage do not write to other pages and workers run in parallel
   # without COW contention. Memory cost is P x N x 8 bytes (~430 MB for 6k
-  # cells, ~7 GB for 99k cells); for very large inputs we fall back to per-chunk
-  # dense extraction in the worker (still better than per-cell sparse access).
-  # The cap on the dense copy is configurable via env var RFIND_DENSE_MAX_GB
-  # (in GB; default 8; an unset variable or a value that is not a number gives
-  # the default). Set it lower on a machine with little memory (0 turns the
-  # pre-densify step off). Scores do not depend on it.
+  # cells, ~5.7 GB for 75k cells of 9.4k genes); above the cap the workers make
+  # each chunk dense themselves. Measured in 0.3.9 (R 4.5.2, Apple M3, 16 GB;
+  # 75,572 cells x 9,414 genes): per-chunk extraction was as fast on 6 cores and
+  # used far less memory; with the 5.7 GB copy, 6 cores had been no faster than
+  # one on an 8 GB machine (0.3.8). On one core the copy was about 10% faster. Hence the cap of 2 GB (8 GB before 0.3.9), configurable
+  # via env var RFIND_DENSE_MAX_GB (in GB; an unset variable or a value that is
+  # not a number gives the default; 0 turns the copy off). Scores do not depend
+  # on it.
   mem_gb <- nrow(counts_u) * ncol(counts_u) * 8 / 1e9
   dense_max_gb <- {
     env_v <- suppressWarnings(as.numeric(Sys.getenv("RFIND_DENSE_MAX_GB")))
-    if (!is.na(env_v)) env_v else 8
+    if (!is.na(env_v)) env_v else 2
   }
   predensify <- mem_gb <= dense_max_gb
   if (predensify) {
@@ -282,14 +295,23 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
       ranking <- rank_cell_residuals(obs, expected)
       scores <- vapply(axis_names, function(nm) {
         tryCatch(
-          score_cell_ranking(ranking, b2_list[[nm]], gene_names,
-                             n_cell = config$n_cell, clip = config$clip),
+          # the duplicated names were reported once above, not for every cell
+          withCallingHandlers(
+            score_cell_ranking(ranking, b2_list[[nm]], gene_names,
+                               n_cell = config$n_cell, clip = config$clip),
+            rfindsc_duplicated_names = function(w) invokeRestart("muffleWarning")),
           error = function(e) NA_real_
         )
       }, numeric(1))
-      list(scores = scores,
-           up_idx = utils::head(ranking$up, config$n_cell),
-           down_idx = utils::head(ranking$down, config$n_cell))
+      # the per-cell signatures are sent back from the workers only when asked for (0.3.9): for 75,572 cells they are
+      # about 300 MB, and copying them back took about a third of the time on 6 cores
+      if (isTRUE(return_signatures)) {
+        list(scores = scores,
+             up_idx = utils::head(ranking$up, config$n_cell),
+             down_idx = utils::head(ranking$down, config$n_cell))
+      } else {
+        list(scores = scores)
+      }
     })
   }, mc.cores = config$n_cores)
 

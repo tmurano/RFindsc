@@ -8,17 +8,16 @@ compared by the smallest hypergeometric p-value over every pair of cut-offs
 (top G genes of one list × top K of the other; an unordered gene set such as an
 MSigDB Hallmark set is used whole, and only the cell's cut-offs are scanned), and
 the four up/down pairs are combined into one **signed** score — positive for case-aligned cells, negative
-for control-aligned — which directionless tools like AUCell and UCell cannot
-express by design.
+for control-aligned.
 
 Each cell's own UP/DOWN signature is ranked by the **P2 Pearson residual**
 `(obs - exp)/sqrt(exp + 1)` of observed vs baseline-expected counts — a
 "delta" whose DOWN side is every gene expressed *below* expectation (not just
 dropouts).
 
-Version 0.3.8 matches the RFind-sc paper (Murano et al., in preparation):
-G x K Running Fisher kernel (gene groups used whole, 0.3.4), the pair universe
-of each comparison (the dataset's genes that the reference could contain, 0.3.5),
+Version 1.0.0 matches the RFind-sc paper (Murano et al., in preparation):
+G x K Running Fisher kernel (gene groups used whole), the pair universe
+of each comparison (the dataset's genes that the reference could contain),
 the paper's reference axes and the paper's per-cell-type baseline option.
 
 ---
@@ -27,7 +26,7 @@ the paper's reference axes and the paper's per-cell-type baseline option.
 
 ```r
 # install.packages("devtools")
-devtools::install_github("tmurano/RFindsc@v0.3.8")   # the version of the paper; without @v0.3.8, the current version
+devtools::install_github("tmurano/RFindsc@v1.0.0")   # the version of the paper; without @v1.0.0, the current version
 ```
 
 Required dependencies: `Matrix`, `parallel` (base R).
@@ -48,7 +47,7 @@ Scoring runs in parallel with `parallel::mclapply()`. Windows cannot fork, so th
 bundled references, numerically identical scores; AnnData input):
 
 ```bash
-pip install git+https://github.com/tmurano/rfindsc-py@v0.3.8
+pip install git+https://github.com/tmurano/rfindsc-py@v1.0.0
 ```
 
 ---
@@ -107,22 +106,21 @@ out <- score_panel_pairs(mg, panels)   # signed scores
 
 ## Why RFind-sc
 
-Existing per-cell scoring tools (AUCell, UCell, ssGSEA) treat gene sets as
-**directionless markers** and return **non-negative** scores. That is
-appropriate for pathway scoring against curated databases (MSigDB Hallmark,
-GO), but limits analyses where gene sets come from case-vs-control contrasts —
-the most common form of DEG output.
+Differential expression lists, the most common output of case-vs-control experiments, have a direction (up- and
+down-regulated genes) and an order (the size of each change). RFind-sc uses both: it matches each cell's ranked UP and
+DOWN lists with the reference's up and down lists over every pair of cut-offs and returns a signed score, so that a cell
+that resembles the control side of a contrast scores below 0 and a cell with no resemblance scores near 0. Unordered gene
+sets (MSigDB Hallmark, GO) are scored with the same test.
 
-| | AUCell / UCell | RFind-sc |
-|---|---|---|
-| Uses UP and DOWN lists | ✗ (one list) | ✓ |
-| Signed score (direction-aware) | ✗ (non-negative) | ✓ |
-| Score | AUC / rank statistic | `-log10` of hypergeometric p (ranks only), cut-offs searched per cell |
-| Baseline | per-cell ranks | expected counts from the dataset (P2 residual) |
+| | AUCell | UCell | RFind-sc |
+|---|---|---|---|
+| Reference | one gene set | gene set, or signed signature (up and down genes) | up and down lists (ranked), or a gene set |
+| Score | AUC of the set in the cell's gene ranking (≥ 0) | Mann-Whitney U statistic of the set in the cell's ranking; for a signed signature, up minus down, set to 0 when negative (≥ 0) | signed `-log10` of the smallest hypergeometric p over every pair of cut-offs |
+| Ranking of the cell's genes | expression | expression | P2 residual against counts expected from a baseline of the dataset |
 
-**When to use which**: AUCell / UCell remain the right tools for directionless
-pathway scoring (MSigDB Hallmark, GO). RFind-sc is the tool when your panels
-have a case-vs-control structure (most DEG workflows).
+**When to use which**: AUCell and UCell are fast and well suited to marker and pathway sets. RFind-sc is designed for
+references with a case-vs-control direction (differential expression lists of any length, up to whole lists), where
+cells on the control side should be told apart from cells with no change.
 
 ---
 
@@ -140,7 +138,7 @@ have a case-vs-control structure (most DEG workflows).
   `baseline_groups` (one label per cell, e.g. the cell type) for a per-group baseline (see below). `run_pipeline()`,
   `score_genesets()` and `score_panel_pairs()` accept both arguments too.
 - `add_rfind_scores(object, scores, prefix = "RFind_")` — writes the scores of any of the functions above into the
-  metadata of a Seurat object (or a data frame of cells), one column per panel, matched by cell name (0.3.7).
+  metadata of a Seurat object (or a data frame of cells), one column per panel, matched by cell name.
 - `rfindsc_config(top_n, n_cell, nonzero_rate, clip, n_cores)` — hyperparameter defaults.
 
 ### Panel construction
@@ -156,8 +154,7 @@ have a case-vs-control structure (most DEG workflows).
 - `running_fisher(g1, g2, universe_size, clip, g2_ranked)` — Running Fisher score of two ranked lists: `-log10` of the
   smallest hypergeometric upper-tail p over every top-G × top-K cut-off pair. With `g2_ranked = FALSE`, `g2` is an
   unordered gene set: K is fixed at the set size and only the top-G cut-offs of `g1` are scanned, as for a biogroup in
-  the original Running Fisher. (`bid_running_fisher()` is the former name, kept as an alias; before 0.3.0 it averaged
-  two one-sided scans.)
+  the original Running Fisher. (`bid_running_fisher()` is the former name, kept as an alias.)
 
 ---
 
@@ -196,14 +193,13 @@ biosets <- c(default_biosets(), load_dedonno_biosets(),
 Each panel is scored in its pair universe: the genes of the dataset that are also in the panel's `eligible` genes (the genes
 its source study reported; set by `build_panel_from_deg()` and carried by the bundled ranked references), or all genes of the
 dataset for a panel without `eligible` (a gene set). Each cell's UP / DOWN lists are restricted to it before the top 500 are
-taken (0.3.5); a ranked panel keeps its top 500 genes per side and then those in the pair universe (0.3.8), and a gene set
+taken; a ranked panel keeps its top 500 genes per side and then those in the pair universe, and a gene set
 is used whole.
 
 **Ranked lists and gene sets.** A panel is either ranked (DEG lists, most extreme first) or an unordered membership set
 (`ranked = FALSE`: the bundled gene groups `Interferon`, `G2M`, `UPR`, `NF-kB`, every panel from
 `msigdbr_to_panels()` / `c2_cgp_auto_pair()`, and every set given to `score_genesets()`). A set has no order, so it is
-used whole: only the cut-offs of the cell's ranked lists are scanned (before 0.3.4 its alphabetical order was scanned
-too). For a panel without a `ranked` field, types `"gene_group"`, `"msigdb_type_b"` and `"msigdb_cgp_paired"` count as
+used whole: only the cut-offs of the cell's ranked lists are scanned. For a panel without a `ranked` field, types `"gene_group"`, `"msigdb_type_b"` and `"msigdb_cgp_paired"` count as
 sets.
 
 ---
@@ -263,7 +259,7 @@ Scales ≈ linearly in cell count.
 ## Citation
 
 Murano et al. 2026 (in preparation). Please cite the preprint once available.
-For now, reference this repository and the version used (the paper used 0.3.8, git tag `v0.3.8`).
+For now, reference this repository and the version used (the paper used 1.0.0, git tag `v1.0.0`).
 
 ---
 

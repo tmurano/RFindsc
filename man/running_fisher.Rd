@@ -48,6 +48,10 @@ list in both directions and averaged the two p-values (geometric mean). The
 current definition matches the RFind-sc paper. Changed in 0.3.4: \code{g2_ranked}
 added; before, gene sets were scanned as if ranked in the order stored
 (alphabetical for the bundled gene groups).
+
+Each list should name each gene once: a name given twice counts as two
+genes and inflates the overlap \code{M}. Since 0.3.9 such input gives a warning
+(class \code{rfindsc_duplicated_names}); the score is computed as before.
 }
 \examples{
 set.seed(1)
