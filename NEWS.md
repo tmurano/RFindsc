@@ -1,3 +1,15 @@
+# RFindsc 1.0.1
+
+- The version of the RFind-sc paper. The scores of the paper's data are those of 1.0.0.
+- A count difference within the floating-point error of the baseline is zero, so a cell identical to its baseline (for
+  example the only cell of a baseline group) gets empty UP/DOWN lists and a score of 0; rounding errors gave it non-zero
+  scores before. The Python package uses the same rule.
+- `score_cells()` and the wrappers stop on counts that are not finite or are negative, library sizes that are not finite
+  and positive, missing or empty gene names and duplicated panel names.
+- A gene named twice in a prepared reference list gives one warning before scoring (the list is scored as given).
+- `rfindsc_config()` uses one core when `parallel::detectCores()` gives no number.
+- Regression tests, and a test that runs this package and the Python package on the same inputs (`RFINDSC_PY_SOURCE`).
+
 # RFindsc 1.0.0
 
 - First stable release, the version of the RFind-sc paper. The code and the scores are those of 0.3.9; only the

@@ -111,7 +111,8 @@ score_genesets <- function(input,
   if (!is.list(gene_sets) || length(gene_sets) == 0L) {
     stop("`gene_sets` must be a non-empty named list of gene vectors.")
   }
-  if (is.null(names(gene_sets)) || any(names(gene_sets) == "")) {
+  if (is.null(names(gene_sets)) || anyNA(names(gene_sets)) ||
+      any(!nzchar(trimws(names(gene_sets)))) || anyDuplicated(names(gene_sets))) {
     stop("`gene_sets` must have unique non-empty names for each gene set.")
   }
   biosets <- lapply(gene_sets, function(g) {
@@ -176,7 +177,8 @@ score_panel_pairs <- function(input,
   if (!is.list(panels) || length(panels) == 0L) {
     stop("`panels` must be a non-empty named list.")
   }
-  if (is.null(names(panels)) || any(names(panels) == "")) {
+  if (is.null(names(panels)) || anyNA(names(panels)) ||
+      any(!nzchar(trimws(names(panels)))) || anyDuplicated(names(panels))) {
     stop("`panels` must have unique non-empty names.")
   }
   to_df <- function(x, sign = 1) {

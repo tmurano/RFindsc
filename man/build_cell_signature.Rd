@@ -30,6 +30,9 @@ the top \code{n_cell} genes with the most negative residual (\code{down_idx},
 under-expressed / dropped out relative to baseline). Fewer than \code{n_cell}
 genes are returned on a side when that many signed residuals are unavailable
 (wrong-sign genes are never padded in).
+Count differences within 64 machine epsilons times the larger of 1, observed
+and expected counts are numerical zeroes. \code{\link[=score_cells]{score_cells()}} also allows for
+summation over the cells contributing to each baseline group.
 }
 \details{
 This residual formulation (P2) replaces the earlier log-ratio delta and its

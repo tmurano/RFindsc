@@ -17,7 +17,7 @@ Each cell's own UP/DOWN signature is ranked by the **P2 Pearson residual**
 "delta" whose DOWN side is every gene expressed *below* expectation (not just
 dropouts).
 
-Version 1.0.0 matches the RFind-sc paper (Murano et al., in preparation):
+Version 1.0.1 matches the RFind-sc paper (Murano et al., in preparation):
 G x K Running Fisher kernel (gene groups used whole), the pair universe
 of each comparison (the dataset's genes that the reference could contain),
 the paper's reference axes and the paper's per-cell-type baseline option.
@@ -28,7 +28,7 @@ the paper's reference axes and the paper's per-cell-type baseline option.
 
 ```r
 # install.packages("devtools")
-devtools::install_github("tmurano/RFindsc@v1.0.0")   # the version of the paper; without @v1.0.0, the current version
+devtools::install_github("tmurano/RFindsc@v1.0.1")   # the version of the paper; without @v1.0.1, the current version
 ```
 
 Required dependencies: `Matrix`, `parallel` (base R).
@@ -49,7 +49,7 @@ Scoring runs in parallel with `parallel::mclapply()`. Windows cannot fork, so th
 bundled references, numerically identical scores; AnnData input):
 
 ```bash
-pip install git+https://github.com/tmurano/rfindsc-py@v1.0.0
+pip install git+https://github.com/tmurano/rfindsc-py@v1.0.1
 ```
 
 ---
@@ -206,6 +206,23 @@ sets.
 
 ---
 
+## Numerical zeroes and input checks
+
+A count difference (observed minus expected) is zero when it is within the floating-point error of the baseline,
+`8 * .Machine$double.eps * max(8, N) * max(1, abs(observed), abs(expected))`, where `N` is the number of cells in the
+cell's baseline group (`N = 1` in `build_cell_signature()`). A cell identical to its baseline, such as the only cell of
+a baseline group, therefore gets empty UP/DOWN lists and a score of 0. The Python package uses the same rule.
+
+Counts must be finite and non-negative, library sizes finite and positive, gene names present and non-empty, and panel
+names unique (several `meta` entries may be combined). A gene named twice in a prepared reference list gives one warning
+before scoring; the list is scored as given, so remove the duplicate from the reference.
+
+Tests: `testthat::test_local()`. With `RFINDSC_PY_SOURCE=<rfindsc-py checkout>` (and `RFINDSC_PYTHON=<python>`), they
+also run this package and the Python package on the same inputs and compare the scores (to 1e-8), the UP/DOWN lists and
+the 384 kernel cases.
+
+---
+
 ## Configuration
 
 Defaults (see `?rfindsc_config`) follow the paper:
@@ -216,7 +233,7 @@ Defaults (see `?rfindsc_config`) follow the paper:
 | `n_cell` | 500 | per-cell UP / DOWN signature length |
 | `nonzero_rate` | 0.01 | gene universe filter (detected in ≥ 1% of cells) |
 | `clip` | 300 | score magnitude cap (symmetric) |
-| `n_cores` | cores − 1 (1 on Windows) | parallel mclapply workers |
+| `n_cores` | cores − 1 (1 on Windows or if detection fails) | parallel mclapply workers |
 
 Two environment variables tune memory and dispatch; scores do not depend on them. Unset, or set to a value that is not
 a number, each takes its default:
@@ -261,7 +278,7 @@ Scales ≈ linearly in cell count.
 ## Citation
 
 Murano et al. 2026 (in preparation). Please cite the preprint once available.
-For now, reference this repository and the version used (the paper used 1.0.0, git tag `v1.0.0`).
+For now, reference this repository and the version used (the paper used 1.0.1, git tag `v1.0.1`).
 
 ---
 

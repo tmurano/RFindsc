@@ -9,8 +9,7 @@ rfindsc_config(
   n_cell = 500,
   nonzero_rate = 0.01,
   clip = 300,
-  n_cores = if (.Platform$OS.type == "windows") 1 else max(1, parallel::detectCores() -
-    1)
+  n_cores = .default_n_cores()
 )
 }
 \arguments{
@@ -30,7 +29,7 @@ non-zero to enter the scoring universe. Default 0.01.}
 \item{n_cores}{Number of cores for \code{parallel::mclapply}.
 Default \code{max(1, parallel::detectCores() - 1)}, and 1 on Windows, where
 \code{mclapply} cannot fork and supports only one core. Scores do not depend
-on it.}
+on it. If core detection is unavailable, defaults to 1.}
 }
 \value{
 A named list of settings.

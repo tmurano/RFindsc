@@ -4,7 +4,7 @@
 \alias{rank_cell_residuals}
 \title{Full signed ranking of one cell's genes by the P2 residual}
 \usage{
-rank_cell_residuals(obs, expected)
+rank_cell_residuals(obs, expected, baseline_size = 1L)
 }
 \arguments{
 \item{obs}{Numeric vector: observed counts for one cell, one entry per gene
@@ -12,6 +12,9 @@ in the scoring universe.}
 
 \item{expected}{Numeric vector: expected counts under the baseline for this
 cell (baseline rate x library size), same length and order as \code{obs}.}
+
+\item{baseline_size}{Number of cells contributing to the baseline. The
+count-scale zero tolerance is \code{8 * .Machine$double.eps * max(8, baseline_size) * pmax(1, abs(obs), abs(expected))}.}
 }
 \value{
 A list with integer vectors \code{up} and \code{down} (1-based indices into

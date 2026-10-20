@@ -16,7 +16,8 @@ score_cells(
 \arguments{
 \item{counts}{A sparse or dense gene x cell counts matrix (raw counts).
 Library size is taken as \code{colSums(counts)}, so pass the full counts (do
-not pre-subset genes) for a faithful baseline.}
+not pre-subset genes) for a faithful baseline. Counts must be finite and
+non-negative; gene row names must be present, non-missing and non-empty.}
 
 \item{biosets}{A bioset list (see \code{\link[=default_biosets]{default_biosets()}}). A panel with
 \code{ranked = FALSE} (a membership gene set, e.g. the bundled \code{Interferon}
@@ -33,7 +34,8 @@ index lists. Default FALSE.}
 \item{libsize}{Optional numeric vector: total UMI per cell (one per column
 of \code{counts}). Default \code{colSums(counts)}. Pass the totals over all genes when
 \code{counts} has already been restricted to a gene universe (as in the RFind-sc
-paper, where the universe is chosen before scoring).}
+paper, where the universe is chosen before scoring). Values must be finite
+and strictly positive.}
 
 \item{baseline_groups}{Optional vector (character, factor or numeric) with
 one label per cell (column of \code{counts}), e.g. the cell type. Default \code{NULL}:

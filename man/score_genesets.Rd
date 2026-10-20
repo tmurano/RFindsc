@@ -28,7 +28,8 @@ panel names.}
 \item{libsize}{Optional numeric vector: total UMI per cell (one per column
 of \code{counts}). Default \code{colSums(counts)}. Pass the totals over all genes when
 \code{counts} has already been restricted to a gene universe (as in the RFind-sc
-paper, where the universe is chosen before scoring).}
+paper, where the universe is chosen before scoring). Values must be finite
+and strictly positive.}
 
 \item{baseline_groups}{Optional vector (character, factor or numeric) with
 one label per cell (column of \code{counts}), e.g. the cell type. Default \code{NULL}:

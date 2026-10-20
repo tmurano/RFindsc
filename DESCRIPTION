@@ -1,6 +1,6 @@
 Package: RFindsc
 Title: Direction-Aware Panel Scoring for Single-Cell RNA-Seq
-Version: 1.0.0
+Version: 1.0.1
 Authors@R: c(
     person("Tomoyuki", "Murano", , "tomoyuki.murano@fujita-hu.ac.jp", role = c("aut", "cre")),
     person("Miyakawa", "Lab", role = "fnd")
@@ -26,6 +26,7 @@ Depends:
     R (>= 4.1.0)
 Imports:
     Matrix,
+    methods,
     stats,
     utils,
     parallel
@@ -35,7 +36,8 @@ Suggests:
     msigdbr (>= 10.0.0),
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    jsonlite,
+    testthat (>= 3.2.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 URL: https://github.com/tmurano/RFindsc

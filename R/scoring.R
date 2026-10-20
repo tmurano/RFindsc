@@ -10,6 +10,9 @@
 #' under-expressed / dropped out relative to baseline). Fewer than `n_cell`
 #' genes are returned on a side when that many signed residuals are unavailable
 #' (wrong-sign genes are never padded in).
+#' Count differences within 64 machine epsilons times the larger of 1, observed
+#' and expected counts are numerical zeroes. [score_cells()] also allows for
+#' summation over the cells contributing to each baseline group.
 #'
 #' This residual formulation (P2) replaces the earlier log-ratio delta and its
 #' dropout-only DOWN side: the DOWN signature is now every gene expressed below
@@ -40,11 +43,19 @@ build_cell_signature <- function(obs, expected, n_cell = 500) {
 #' then cut, so the ranking must not be cut before. Added in 0.3.5.
 #'
 #' @inheritParams build_cell_signature
+#' @param baseline_size Number of cells contributing to the baseline. The
+#'   count-scale zero tolerance is `8 * .Machine$double.eps * max(8, baseline_size) *
+#'   pmax(1, abs(obs), abs(expected))`.
 #' @return A list with integer vectors `up` and `down` (1-based indices into
 #'   the universe).
 #' @keywords internal
-rank_cell_residuals <- function(obs, expected) {
-  resid <- (obs - expected) / sqrt(expected + 1)
+rank_cell_residuals <- function(obs, expected, baseline_size = 1L) {
+  # Same count-scale bound as Python: allow for summation in a group's mean
+  # plus the CPM conversions. This is a numerical bound, not an effect-size filter.
+  diff <- obs - expected
+  tolerance <- 8 * .Machine$double.eps * max(8, baseline_size) * pmax(1, abs(obs), abs(expected))
+  diff[abs(diff) <= tolerance] <- 0
+  resid <- diff / sqrt(expected + 1)
   pos <- which(resid > 0)
   neg <- which(resid < 0)
   list(up   = if (length(pos)) pos[order(resid[pos], decreasing = TRUE)] else integer(0),
@@ -124,7 +135,8 @@ score_cell_ranking <- function(ranking, b, gene_names, n_cell, clip = 300) {
 #'
 #' @param counts A sparse or dense gene x cell counts matrix (raw counts).
 #'   Library size is taken as `colSums(counts)`, so pass the full counts (do
-#'   not pre-subset genes) for a faithful baseline.
+#'   not pre-subset genes) for a faithful baseline. Counts must be finite and
+#'   non-negative; gene row names must be present, non-missing and non-empty.
 #' @param biosets A bioset list (see [default_biosets()]). A panel with
 #'   `ranked = FALSE` (a membership gene set, e.g. the bundled `Interferon`
 #'   group) is used whole; other panels are ranked lists (see [to_b2()] and
@@ -137,7 +149,8 @@ score_cell_ranking <- function(ranking, b, gene_names, n_cell, clip = 300) {
 #' @param libsize Optional numeric vector: total UMI per cell (one per column
 #'   of `counts`). Default `colSums(counts)`. Pass the totals over all genes when
 #'   `counts` has already been restricted to a gene universe (as in the RFind-sc
-#'   paper, where the universe is chosen before scoring).
+#'   paper, where the universe is chosen before scoring). Values must be finite
+#'   and strictly positive.
 #' @param baseline_groups Optional vector (character, factor or numeric) with
 #'   one label per cell (column of `counts`), e.g. the cell type. Default `NULL`:
 #'   one dataset-wide baseline, the mean CPM over all cells. When given, each
@@ -187,11 +200,33 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
                         return_signatures = FALSE, libsize = NULL,
                         baseline_groups = NULL) {
   stopifnot(is.list(biosets), length(biosets) > 0)
-  axis_names <- setdiff(names(biosets), "meta")
+  panel_names <- names(biosets)
+  if (is.null(panel_names) || anyNA(panel_names) || any(!nzchar(trimws(panel_names)))) {
+    stop("`biosets` must have unique non-empty names for each panel.")
+  }
+  axis_names <- panel_names[panel_names != "meta"]
+  if (anyDuplicated(axis_names)) stop("`biosets` must have unique non-empty names for each panel.")
   stopifnot(length(axis_names) > 0)
 
+  if (!(is.matrix(counts) || inherits(counts, "Matrix")) || ncol(counts) == 0L) {
+    stop("counts must be a gene x cell matrix with at least one cell.")
+  }
+  genes <- rownames(counts)
+  if (is.null(genes) || anyNA(genes) || any(!nzchar(trimws(genes)))) {
+    stop("gene names (rownames of counts) are required and must not be missing or empty.")
+  }
+  values <- if (inherits(counts, "Matrix")) {
+    if ("x" %in% methods::slotNames(counts)) counts@x else 1
+  } else counts
+  if (!(is.numeric(values) || is.logical(values)) || is.complex(values) ||
+      any(!is.finite(values)) || any(values < 0)) {
+    stop("counts must contain only finite, non-negative values.")
+  }
   if (is.null(libsize)) libsize <- Matrix::colSums(counts)
-  stopifnot(length(libsize) == ncol(counts))
+  if (!is.numeric(libsize) || length(libsize) != ncol(counts) ||
+      any(!is.finite(libsize)) || any(libsize <= 0)) {
+    stop("`libsize` must contain one finite, positive library size per cell.")
+  }
   group <- baseline_group_index(baseline_groups, ncol(counts))
   cpm <- Matrix::t(Matrix::t(counts) / libsize) * 1e6
   keep <- Matrix::rowMeans(cpm > 0) >= config$nonzero_rate
@@ -212,6 +247,7 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
       numeric(nrow(cpm)))
   }
   if (is.null(group)) group <- rep(1L, ncol(counts))
+  baseline_sizes <- tabulate(group)
   gene_names <- tolower(universe)
   # Names are matched without regard to case, so two rows whose names differ only in case (e.g. PISD and Pisd) count as
   # the same gene twice in a cell's lists (0.3.9: a warning, once; the scores are computed as before)
@@ -234,6 +270,15 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
   b2_list <- lapply(axis_names, function(nm)
     prepare_panel(to_b2(biosets[[nm]]), gene_names, config$top_n))
   names(b2_list) <- axis_names
+  duplicated_panels <- axis_names[vapply(b2_list, function(b)
+    anyDuplicated(b$up) > 0L || anyDuplicated(b$down) > 0L, logical(1))]
+  if (length(duplicated_panels)) {
+    warning(structure(class = c("rfindsc_duplicated_names", "warning", "condition"),
+      list(message = paste0("Reference panel(s) name a gene more than once after case-insensitive matching: ",
+                            paste(duplicated_panels, collapse = ", "),
+                            ". Remove duplicates before scoring; reference ranks are otherwise unchanged."),
+           call = NULL)))
+  }
 
   n_cells <- ncol(counts_u)
   cell_names <- colnames(counts_u)
@@ -292,7 +337,7 @@ score_cells <- function(counts, biosets, config = rfindsc_config(),
     lapply(seq_along(idx_chunk), function(j) {
       obs <- chunk_data[, j]
       expected <- expc_rate[, group[idx_chunk[j]]] * libsize[idx_chunk[j]]
-      ranking <- rank_cell_residuals(obs, expected)
+      ranking <- rank_cell_residuals(obs, expected, baseline_sizes[group[idx_chunk[j]]])
       scores <- vapply(axis_names, function(nm) {
         tryCatch(
           # the duplicated names were reported once above, not for every cell

@@ -1,3 +1,10 @@
+.default_n_cores <- function() {
+  if (.Platform$OS.type == "windows") return(1L)
+  n <- parallel::detectCores()
+  if (length(n) != 1L || !is.finite(n)) return(1L)
+  max(1L, n - 1L)
+}
+
 #' RFind-sc configuration defaults
 #'
 #' Default hyperparameters for RFind-sc scoring. Pass a modified copy to
@@ -15,7 +22,7 @@
 #' @param n_cores Number of cores for `parallel::mclapply`.
 #'   Default `max(1, parallel::detectCores() - 1)`, and 1 on Windows, where
 #'   `mclapply` cannot fork and supports only one core. Scores do not depend
-#'   on it.
+#'   on it. If core detection is unavailable, defaults to 1.
 #'
 #' @return A named list of settings.
 #' @export
@@ -23,8 +30,7 @@ rfindsc_config <- function(top_n = 500,
                            n_cell = 500,
                            nonzero_rate = 0.01,
                            clip = 300,
-                           n_cores = if (.Platform$OS.type == "windows") 1 else
-                             max(1, parallel::detectCores() - 1)) {
+                           n_cores = .default_n_cores()) {
   list(top_n = top_n,
        n_cell = n_cell,
        nonzero_rate = nonzero_rate,
