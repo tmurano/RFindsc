@@ -2,6 +2,8 @@
 
 **Direction-aware panel scoring for single-cell RNA-seq.**
 
+> RFind-sc has three repositories: this R package (**RFindsc**, for Seurat objects), the Python package [rfindsc](https://github.com/tmurano/rfindsc-py) (for AnnData; the same scores) and the [analysis code of the RFind-sc paper](https://github.com/tmurano/RFind-sc).
+
 RFind-sc scores each cell against *case-vs-control* gene panels with the
 Running Fisher test: the cell's ranked gene list and a reference list are
 compared by the smallest hypergeometric p-value over every pair of cut-offs
